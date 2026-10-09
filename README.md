@@ -25,7 +25,7 @@
 
 | Участник | Роль | GitHub | Telegram |
 |----------|------|--------|----------|
-| Пичулина Анастасия | Исполнитель проекта (данные, модели, сервис) | [@username](https://github.com/NastyaPich) | @nastya_peach |
+| Пичулина Анастасия | Исполнитель проекта (данные, модели, сервис) | [@NastyaPich](https://github.com/NastyaPich) | @nastya_peach |
 
 ## 🎓 Куратор
 
