@@ -1,4 +1,21 @@
-data/raw/london/
+# Данные: CSV и большие файлы в git не храним (см. data/README.md)
 *.csv
-.ipynb_checkpoints/
+# небольшие таблицы с результатами экспериментов храним
+!reports/*.csv
+*.pkl
+*.parquet
+*.xlsx
+data/raw/london/
+data/external/
+data/processed/
+# архив Kaggle в data/raw/ остаётся в git: ноутбук EDA.ipynb скачивает его с GitHub
+
+# Python и Jupyter
 __pycache__/
+*.pyc
+.ipynb_checkpoints/
+.venv/
+venv/
+
+# Системные файлы
+.DS_Store
