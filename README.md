@@ -61,16 +61,71 @@
 ## 📁 Структура репозитория
 
 ```
-├── data/
-│   ├── raw/london/    # train.csv, test.csv (из Kaggle, в git не храним)
-│   └── processed/     # обработанные данные
-├── notebooks/         # EDA и эксперименты
-├── src/               # код проекта
-├── service/           # ML-сервис на FastAPI
-├── reports/           # отчёты и графики
+├── data/                  # данные (что где лежит и откуда брать: data/README.md)
+│   ├── raw/               # архив Kaggle; распакованные CSV в raw/london/ (в git не храним)
+│   ├── external/          # внешние данные: станции, почтовые индексы, IMD (в git не храним)
+│   └── processed/         # таблицы с признаками (в git не храним)
+├── notebooks/
+│   └── EDA.ipynb          # разведочный анализ (чекпойнт 2)
+├── src/                   # код проекта
+│   ├── add_features.py        # добавление признаков (одна функция на группу)
+│   ├── fetch_stations_osm.py  # скачивание станций из OpenStreetMap
+│   ├── ablation.py            # проверка вклада групп признаков (один год)
+│   ├── ablation_multi.py      # то же на трёх годах (2021–2023)
+│   └── make_final.py          # итоговый набор признаков
+├── reports/               # результаты экспериментов и отчёты
+├── FEATURES.md            # журнал признаков: источники, защита от утечек, результаты
+├── CLAUDE.md              # контекст проекта для Claude Code
+├── requirements.txt       # зависимости Python
 └── README.md
 ```
 
+Сервис на FastAPI появится в папке `service/` (чекпойнт 4).
+
 ## 🚀 Как запустить
 
-Раздел будет дополняться по мере разработки.
+Все команды выполняются из корня репозитория.
+
+**1. Окружение**
+
+```bash
+pip install -r requirements.txt
+```
+
+**2. Данные**
+
+```bash
+unzip data/raw/london-house-price-prediction-advanced-techniques.zip -d data/raw/london
+```
+
+**3. EDA.** Откройте `notebooks/EDA.ipynb`. Ноутбук сам найдёт данные: распакованные CSV, архив или (если ничего нет) скачает архив с GitHub.
+
+**4. Признаки.** Сначала скачиваем внешние данные (нужен интернет, подробности в `data/README.md`):
+
+```bash
+python src/fetch_stations_osm.py
+```
+
+```bash
+python src/fetch_postcode_lookup.py
+```
+
+Файл IMD 2019 (`ID 2019 for London.xlsx`) скачиваем вручную с [London Datastore](https://data.london.gov.uk/dataset/indices-of-deprivation) в `data/external/`. Затем добавляем признаки:
+
+```bash
+python src/add_features.py --data-dir data/raw/london --out-dir data/processed --stations data/external/stations_london.csv --postcodes data/external/postcode_lookup.csv --imd "data/external/ID 2019 for London.xlsx"
+```
+
+Без внешних файлов скрипт тоже работает, но добавит только группы, которые считаются из самих данных.
+
+**5. Проверка вклада признаков и итоговый набор**
+
+```bash
+python src/ablation_multi.py --train data/processed/train_enriched.csv
+```
+
+```bash
+python src/make_final.py
+```
+
+Результат: `data/processed/train_final.csv` и `test_final.csv`. Почему выбраны именно эти признаки, описано в [`FEATURES.md`](FEATURES.md).
