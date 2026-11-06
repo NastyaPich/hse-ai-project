@@ -41,8 +41,11 @@
   Группа 8: English Indices of Deprivation 2019 (MHCLG), лицензия OGL v3;
       файл "ID 2019 for London.xlsx" на London Datastore: https://data.london.gov.uk/dataset/indices-of-deprivation
 
-ВАЖНО про утечки: признаки 3 и 4 используют цены, поэтому для строки они считаются только
+ВАЖНО про утечки: признаки 3, 4 и 6 используют цены, поэтому для строки они считаются только
 по продажам, которые произошли ДО неё. Для test (2024) историей служит весь train (до 2023).
+
+Обычно этот файл не запускают отдельно: всю базу собирает src/build_dataset.py
+(очистка -> признаки -> итоговый набор).
 """
 import argparse
 import os
@@ -223,40 +226,32 @@ def add_neighbourhood_history(df, hist, min_sector_n=5):
 # Источник: только train.csv соревнования Kaggle (ссылка выше, группа 3): одинаковый fullAddress
 # в разные месяцы = повторная продажа. Внешних данных нет.
 # ---------------------------------------------------------------------------
-def add_repeat_sale(df, hist, same_table):
+def add_repeat_sale(df, hist):
     """
     prev_sale_price       - цена предыдущей продажи по тому же fullAddress,
     prev_sale_gap_months  - сколько месяцев прошло с неё,
     n_prev_sales          - сколько раз адрес продавался раньше,
     prev_price_adj        - предыдущая цена, приведённая к уровню цен района (медиана outcode за год Y-1
                             делится на медиану за год предыдущей продажи).
-    same_table=True: df и есть hist (train), берутся только строго более ранние месяцы.
-    same_table=False: df - другая таблица (test), берётся последняя продажа адреса из hist.
+    Для каждой строки df берётся последняя продажа того же адреса из hist СТРОГО раньше месяца этой строки.
+    Одно и то же правило для train (df и hist - одна таблица) и для test (hist - весь train).
+    Продажи того же месяца не считаются прошлыми (защита от утечки).
     """
     out = df.copy()
     t_out = out["sale_year"] * 12 + out["sale_month"]
     h = hist[["fullAddress", "sale_year", "sale_month", "price"]].copy()
-    h["t"] = h["sale_year"] * 12 + h["sale_month"]
-    h = h.sort_values(["fullAddress", "t"])
-    if same_table:
-        g = h.groupby("fullAddress")
-        prev = pd.DataFrame({"prev_price": g["price"].shift(), "prev_t": g["t"].shift(),
-                             "n_prev": g.cumcount()}, index=h.index)
-        # если предыдущая продажа в том же месяце, считаем, что ранней продажи нет (чтобы не было утечки)
-        same_month = prev["prev_t"] >= h["t"]
-        prev.loc[same_month, ["prev_price", "prev_t"]] = np.nan
-        prev = prev.reindex(out.index)
-        out["prev_sale_price"] = prev["prev_price"].to_numpy()
-        out["prev_sale_gap_months"] = (t_out - prev["prev_t"]).to_numpy()
-        out["n_prev_sales"] = prev["n_prev"].to_numpy()
-    else:
-        last = h.groupby("fullAddress").agg(prev_price=("price", "last"), prev_t=("t", "last"),
-                                             n_prev=("t", "size"))
-        m = out[["fullAddress"]].merge(last, left_on="fullAddress", right_index=True, how="left")
-        out["prev_sale_price"] = m["prev_price"].to_numpy()
-        out["prev_sale_gap_months"] = (t_out.to_numpy() - m["prev_t"].to_numpy())
-        out["n_prev_sales"] = m["n_prev"].fillna(0).to_numpy()
-    out["n_prev_sales"] = out["n_prev_sales"].fillna(0).astype(int)
+    h["prev_t"] = h["sale_year"] * 12 + h["sale_month"]
+    h = h.sort_values(["fullAddress", "prev_t"], kind="stable")
+    h["n_prev"] = h.groupby("fullAddress").cumcount() + 1  # сколько продаж адреса было до этой включительно
+    h = h.sort_values("prev_t", kind="stable")
+    q = pd.DataFrame({"fullAddress": out["fullAddress"].to_numpy(), "t": t_out.to_numpy(),
+                      "_row": np.arange(len(out))}).sort_values("t", kind="stable")
+    m = pd.merge_asof(q, h[["fullAddress", "prev_t", "price", "n_prev"]], left_on="t", right_on="prev_t",
+                      by="fullAddress", direction="backward", allow_exact_matches=False)
+    m = m.sort_values("_row")
+    out["prev_sale_price"] = m["price"].to_numpy()
+    out["prev_sale_gap_months"] = (m["t"] - m["prev_t"]).to_numpy()
+    out["n_prev_sales"] = m["n_prev"].fillna(0).astype(int).to_numpy()
     # приведение к уровню цен района
     hh = _clean_hist(hist)
     med = hh.groupby(["outcode", "sale_year"])["lp"].median().rename("med").reset_index()
@@ -275,15 +270,68 @@ def add_repeat_sale(df, hist, same_table):
 # Сверка/дополнение: открытые данные TfL https://tfl.gov.uk/info-for/open-data-users/
 # Файл data/external/stations_london.csv создаётся этим скриптом локально, в git не хранится.
 # ---------------------------------------------------------------------------
+# Ручная правка выгрузки OSM (проверено по списку станций 07.11.2026).
+# 1) Объекты с тегом railway=station, которые не являются станциями городского транспорта:
+#    выходы к самолётам и внутренний поезд аэропорта Хитроу, детские и парковые узкоколейки.
+NOT_STATIONS = {
+    "Gates A1-A23", "Gates B32-B48", "Gates C52-C66", "Station A", "Station B",
+    "Swanley New Barn Miniature Railway", "Eddie's Rest", "Powdermill Cut", "Long Walk", "Barking Park",
+    "Willow Lawn", "Woody Bay", "Haste Hill", "Cassiobury Park Station", "Depot Approach", "Ealing End",
+    "Hanworth Halt",
+}
+# 2) Станции, открытые после 1995 года (начало данных), у которых в OSM нет start_date.
+#    Без года такая станция считается открытой всегда, и продажа 1996 года "видит" станцию,
+#    которой ещё нет. Годы открытия: статьи о станциях и линиях (Jubilee line extension 1999,
+#    DLR, London Overground, Elizabeth line 2022, Northern line extension 2021).
+#    Ключ: (название, kind), потому что одно название бывает у станций разных видов.
+OPEN_YEAR_FIX = {
+    # продление Jubilee line, 1999
+    ("Southwark", "tube"): 1999, ("Bermondsey", "tube"): 1999, ("Canada Water", "tube"): 1999,
+    ("North Greenwich", "tube"): 1999, ("Canary Wharf", "tube"): 1999,
+    # DLR: Pudding Mill Lane 1996 (в OSM указан 2014, год переноса станции), Lewisham 1999,
+    # London City Airport 2005, Langdon Park 2007, Stratford International 2011
+    ("Pudding Mill Lane", "other"): 1996,
+    ("Cutty Sark for Maritime Greenwich", "other"): 1999, ("Deptford Bridge", "other"): 1999,
+    ("Elverson Road", "other"): 1999, ("Lewisham DLR", "other"): 1999,
+    ("West Silvertown", "other"): 2005, ("Pontoon Dock", "other"): 2005,
+    ("London City Airport", "other"): 2005, ("King George V", "other"): 2005,
+    ("Langdon Park", "other"): 2007,
+    ("Stratford High Street", "other"): 2011, ("Abbey Road", "other"): 2011, ("Star Lane", "other"): 2011,
+    ("Stratford International DLR", "other"): 2011,
+    # London Overground и другие
+    ("Wood Lane", "tube"): 2008, ("Shepherd's Bush", "rail"): 2008, ("Imperial Wharf", "rail"): 2009,
+    ("Stratford International", "rail"): 2009,
+    ("Shoreditch High Street", "rail"): 2010, ("Hoxton", "rail"): 2010, ("Haggerston", "rail"): 2010,
+    ("Dalston Junction", "rail"): 2010,
+    # продление Northern line, 2021
+    ("Nine Elms", "tube"): 2021, ("Battersea Power Station", "tube"): 2021,
+    # Elizabeth line и Barking Riverside, 2022
+    ("Woolwich", "rail"): 2022, ("Custom House", "rail"): 2022, ("Canary Wharf", "rail"): 2022,
+    ("Bond Street", "rail"): 2022, ("Tottenham Court Road", "rail"): 2022, ("Barking Riverside", "rail"): 2022,
+}
+
+
 def load_stations(path):
-    """CSV: name, lat, lon, kind ('tube' | 'rail' | 'other'), open_year (может быть пустым)."""
+    """CSV: name, lat, lon, kind ('tube' | 'rail' | 'other'), open_year (может быть пустым).
+    Применяет ручную правку NOT_STATIONS и OPEN_YEAR_FIX и печатает, что изменилось."""
     st = pd.read_csv(path)
     need = {"name", "lat", "lon", "kind"}
     if not need.issubset(st.columns):
         sys.exit(f"В {path} нет столбцов {need - set(st.columns)}")
     if "open_year" not in st.columns:
         st["open_year"] = np.nan
-    return st.dropna(subset=["lat", "lon"]).reset_index(drop=True)
+    st = st.dropna(subset=["lat", "lon"])
+    drop = st["name"].isin(NOT_STATIONS)
+    st = st[~drop].reset_index(drop=True)
+    fixed = 0
+    for (name, kind), year in OPEN_YEAR_FIX.items():
+        m = (st["name"] == name) & (st["kind"] == kind)
+        if not m.any():
+            print(f"Станции: не найдена {name} ({kind}) из OPEN_YEAR_FIX")
+        fixed += int(m.sum())
+        st.loc[m, "open_year"] = year
+    print(f"Станции: {len(st)} после правки (убрано {int(drop.sum())} не-станций, год открытия задан у {fixed})")
+    return st
 
 
 def _query(stations, lat, lon):
@@ -436,18 +484,21 @@ def add_imd(df, imd):
 
 
 # ---------------------------------------------------------------------------
-def build(train, test, stations=None, postcodes=None, imd=None):
-    """Возвращает (train_enriched, test_enriched)."""
+def build(train, test, stations=None, postcodes=None, imd=None, hist=None):
+    """Возвращает (train_enriched, test_enriched).
+    hist - продажи, по ценам которых считаются группы 3, 4, 6 (по умолчанию весь train).
+    В build_dataset.py сюда передаётся train без дубликатов и подозрительных цен (см. clean.py)."""
+    hist = train if hist is None else hist
     tr = add_centre_distance(train)
     te = add_centre_distance(test)
     tr, te = add_bank_rate(tr), add_bank_rate(te)
-    tr = add_neighbourhood_history(tr, train)
-    te = add_neighbourhood_history(te, train)
-    tr = add_repeat_sale(tr, train, same_table=True)
-    te = add_repeat_sale(te, train, same_table=False)
+    tr = add_neighbourhood_history(tr, hist)
+    te = add_neighbourhood_history(te, hist)
+    tr = add_repeat_sale(tr, hist)
+    te = add_repeat_sale(te, hist)
     addr = pd.concat([train, test])[["fullAddress", "latitude", "longitude"]]
-    tr = add_local_context(tr, train, addr)
-    te = add_local_context(te, train, addr)
+    tr = add_local_context(tr, hist, addr)
+    te = add_local_context(te, hist, addr)
     if stations is not None:
         tr, te = add_transport(tr, stations), add_transport(te, stations)
     if postcodes is not None:

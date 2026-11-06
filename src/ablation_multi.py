@@ -2,6 +2,8 @@
 Абляция на нескольких годах: для каждого года Y из YEARS обучаемся на продажах до Y-1, проверяем на Y.
 Признаки с ценами (группы 3, 4, 6) пересчитываются заново только по истории до Y-1 (как для настоящего test).
 Статические признаки (расстояния, транспорт, район, IMD, ставка) не зависят от цен и берутся из обогащённых таблиц.
+Если в таблице есть флаги очистки (build_dataset.py), признаки из цен считаются только по строкам без
+дубликатов и подозрительных цен, как в основной базе. Обучение и проверка идут на всех строках.
 
     python src/ablation_multi.py --train data/processed/train_enriched.csv
 Нужна таблица со всеми группами (add_features.py с --stations, --postcodes, --imd).
@@ -16,6 +18,8 @@ import pandas as pd
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import add_features as af
+import clean
+import make_final as mf
 import ablation as ab
 
 RAW = ["ID", "fullAddress", "postcode", "country", "outcode", "latitude", "longitude", "bathrooms", "bedrooms",
@@ -31,18 +35,20 @@ if __name__ == "__main__":
     os.makedirs(os.path.dirname(a.out) or ".", exist_ok=True)
     enr = pd.read_pickle(a.train) if a.train.endswith(".pkl") else pd.read_csv(a.train)
     raw = enr[RAW]
+    ok = clean.history_mask(enr) if "price_suspect" in enr.columns else pd.Series(True, index=enr.index)
     static = enr[["ID"] + STATIC].set_index("ID")
     groups = dict(ab.GROUPS); groups.update(ab.OPTIONAL)
     rows = []
     for y in YEARS:
         part, val = raw[raw.sale_year < y], raw[raw.sale_year == y]
-        tr, va = af.build(part, val.drop(columns="price"))
+        tr, va = af.build(part, val.drop(columns="price"), hist=part[ok.loc[part.index]])
         tr = tr.join(static, on="ID"); va = va.join(static, on="ID")
         va = va.assign(price=val["price"].to_numpy())
         sets = [("базовые столбцы", ab.BASE)]
         sets += [(f"+ {g}", ab.BASE + c) for g, c in groups.items()]
         sets.append(("+ все группы", ab.BASE + sum(groups.values(), [])))
         sets += [(f"все, но без: {g}", ab.BASE + sum((c for k, c in groups.items() if k != g), [])) for g in groups]
+        sets.append(("итоговый набор (make_final.KEEP)", ab.BASE + mf.KEEP))
         for name, feats in sets:
             rmse, r2 = ab.fit_eval(tr, va, feats)
             rows.append({"год проверки": y, "набор": name, "RMSE": rmse, "R2": r2})
