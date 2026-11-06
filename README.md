@@ -70,6 +70,7 @@
 ├── src/                   # код проекта
 │   ├── add_features.py        # добавление признаков (одна функция на группу)
 │   ├── fetch_stations_osm.py  # скачивание станций из OpenStreetMap
+│   ├── fetch_postcode_lookup.py  # район и LSOA по почтовому индексу (postcodes.io)
 │   ├── ablation.py            # проверка вклада групп признаков (один год)
 │   ├── ablation_multi.py      # то же на трёх годах (2021–2023)
 │   └── make_final.py          # итоговый набор признаков
