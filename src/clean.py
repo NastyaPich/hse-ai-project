@@ -15,6 +15,13 @@
   area_suspect      площадь ровно 10 м² или 499 м² и больше (похоже на обрезку значений)
   addr_multi_unit   под одним адресом, видимо, несколько квартир: у адреса есть две продажи
                     с интервалом не больше 3 месяцев (настоящая перепродажа так быстро почти не бывает)
+
+Заполнение пропусков (fill_missing, правила из EDA, раздел 3): исходные столбцы не меняются,
+заполненные значения пишутся в новые столбцы с суффиксом _filled, рядом флаги <столбец>_missing.
+  floorAreaSqM      медиана по типу жилья (pt_group) и числу спален; если спален нет - по типу жилья
+  bedrooms, bathrooms, livingRooms   медиана по типу жилья
+  tenure, currentEnergyRating, pt_group   категория 'Unknown'
+Медианы считаются только по train (без подозрительных площадей), test их не видит.
 """
 import numpy as np
 import pandas as pd
@@ -34,6 +41,10 @@ AREA_LOW, AREA_HIGH = 10, 499          # подозрительная площа
 MULTI_UNIT_MONTHS = 3                  # две продажи адреса ближе этого срока -> адрес на несколько квартир
 
 FLAGS = ['pt_group', 'is_duplicate', 'dup_addr_month', 'price_suspect', 'area_suspect', 'addr_multi_unit']
+NUM_FILL = ['floorAreaSqM', 'bedrooms', 'bathrooms', 'livingRooms']
+CAT_FILL = ['tenure', 'currentEnergyRating', 'pt_group']
+FILLED = ([f'{c}_filled' for c in NUM_FILL] + [f'{c}_missing' for c in NUM_FILL]
+          + [f'{c}_filled' for c in CAT_FILL])
 
 
 def _multi_unit_addresses(frames):
@@ -69,6 +80,29 @@ def add_clean_flags(train, test):
     multi = _multi_unit_addresses([tr, te])
     for d in (tr, te):
         d['addr_multi_unit'] = d['fullAddress'].isin(multi).astype(int)
+    return tr, te
+
+
+def fill_missing(train_flagged, test_flagged):
+    """Возвращает копии train и test с дописанными столбцами FILLED (нужен pt_group из add_clean_flags)."""
+    tr, te = train_flagged.copy(), test_flagged.copy()
+    ref = tr[tr['area_suspect'] == 0].assign(_pt=tr['pt_group'].fillna('Unknown'))
+    glob = ref[NUM_FILL].median()
+    by_type = ref.groupby('_pt')[NUM_FILL].median()
+    area_type_bed = ref.groupby(['_pt', 'bedrooms'])['floorAreaSqM'].median().rename('_a_tb')
+    for d in (tr, te):
+        pt = d['pt_group'].fillna('Unknown')
+        for c in NUM_FILL:
+            d[f'{c}_missing'] = d[c].isna().astype(int)
+        # площадь: тип + спальни -> тип -> общая медиана
+        a_tb = pd.DataFrame({'_pt': pt, 'bedrooms': d['bedrooms']}).join(area_type_bed, on=['_pt', 'bedrooms'])['_a_tb']
+        d['floorAreaSqM_filled'] = (d['floorAreaSqM'].fillna(a_tb).fillna(pt.map(by_type['floorAreaSqM']))
+                                    .fillna(glob['floorAreaSqM']))
+        # комнаты: тип -> общая медиана
+        for c in ['bedrooms', 'bathrooms', 'livingRooms']:
+            d[f'{c}_filled'] = d[c].fillna(pt.map(by_type[c])).fillna(glob[c])
+        for c in CAT_FILL:
+            d[f'{c}_filled'] = d[c].fillna('Unknown')
     return tr, te
 
 

@@ -6,6 +6,7 @@
 Шаги:
   1. читает data/raw/london/train.csv и test.csv;
   2. очистка (src/clean.py): строки не удаляются, добавляются флаги и pt_group;
+     пропуски заполняются в новых столбцах *_filled (исходные столбцы не меняются);
   3. признаки (src/add_features.py): признаки из цен считаются только по "чистой" истории
      (train без дубликатов и подозрительных цен);
   4. сохраняет data/processed/{train,test}_enriched.csv - все признаки, включая отброшенные
@@ -53,6 +54,7 @@ def main():
 
     # 2. очистка
     tr, te = clean.add_clean_flags(train, test)
+    tr, te = clean.fill_missing(tr, te)
     print("\nФлаги очистки:\n" + clean.summary(tr, te).to_string())
     hist = tr[clean.history_mask(tr)]
     print(f"История для признаков из цен: {len(hist)} из {len(tr)} строк train")

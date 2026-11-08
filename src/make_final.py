@@ -16,6 +16,10 @@ RAW = ["ID", "fullAddress", "postcode", "outcode", "latitude", "longitude", "bat
 # столбец country (всегда England) убран как неинформативный
 # флаги очистки (src/clean.py): строки не удаляются, решение о них принимается при обучении
 FLAGS = ["pt_group", "is_duplicate", "dup_addr_month", "price_suspect", "area_suspect", "addr_multi_unit"]
+# заполненные пропуски (src/clean.py, fill_missing): исходные столбцы остаются как есть
+FILLED = ["floorAreaSqM_filled", "bedrooms_filled", "bathrooms_filled", "livingRooms_filled",
+          "floorAreaSqM_missing", "bedrooms_missing", "bathrooms_missing", "livingRooms_missing",
+          "tenure_filled", "currentEnergyRating_filled", "pt_group_filled"]
 KEEP = [
     # прошлая продажа того же адреса (только из прошлого)
     "prev_sale_price", "prev_price_adj", "prev_sale_gap_months",
@@ -32,7 +36,7 @@ KEYS = ["lsoa_code"]  # справочный столбец для присое�
 
 
 def select_final(df, is_train):
-    cols = RAW + (["price"] if is_train else []) + [c for c in FLAGS if c in df.columns] + KEEP + KEYS
+    cols = RAW + (["price"] if is_train else []) + [c for c in FLAGS + FILLED if c in df.columns] + KEEP + KEYS
     missing = [c for c in cols if c not in df.columns]
     if missing:
         raise SystemExit(f"Нет столбцов {missing}: соберите таблицы со всеми внешними файлами "
