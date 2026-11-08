@@ -4,6 +4,10 @@
 Признаки для проверочной части считаются честно - только по истории до 2022 (функция build).
 
     python src/ablation.py --data-dir data/raw/london
+
+Первая версия проверки: признаки считаются по всему train, без очистки (src/clean.py).
+Актуальная проверка - src/ablation_multi.py (три года, очищенная база). Этот файл оставлен,
+потому что ablation_multi.py берёт из него списки признаков (BASE, GROUPS, OPTIONAL) и fit_eval.
     (необязательно: --stations, --postcodes, --imd, как в add_features.py)
 """
 import argparse
