@@ -68,8 +68,11 @@
 ├── notebooks/
 │   └── EDA.ipynb          # разведочный анализ (чекпойнт 2)
 ├── src/                   # код проекта
+│   ├── build_dataset.py       # сборка основной базы одной командой
+│   ├── clean.py               # очистка: флаги дубликатов, ошибок и т.п. (строки не удаляются)
 │   ├── add_features.py        # добавление признаков (одна функция на группу)
 │   ├── fetch_stations_osm.py  # скачивание станций из OpenStreetMap
+│   ├── fetch_postcode_lookup.py  # район и LSOA по почтовому индексу (postcodes.io)
 │   ├── ablation.py            # проверка вклада групп признаков (один год)
 │   ├── ablation_multi.py      # то же на трёх годах (2021–2023)
 │   └── make_final.py          # итоговый набор признаков
@@ -100,7 +103,7 @@ unzip data/raw/london-house-price-prediction-advanced-techniques.zip -d data/raw
 
 **3. EDA.** Откройте `notebooks/EDA.ipynb`. Ноутбук сам найдёт данные: распакованные CSV, архив или (если ничего нет) скачает архив с GitHub.
 
-**4. Признаки.** Сначала скачиваем внешние данные (нужен интернет, подробности в `data/README.md`):
+**4. Внешние данные** (нужен интернет, подробности в `data/README.md`):
 
 ```bash
 python src/fetch_stations_osm.py
@@ -110,22 +113,20 @@ python src/fetch_stations_osm.py
 python src/fetch_postcode_lookup.py
 ```
 
-Файл IMD 2019 (`ID 2019 for London.xlsx`) скачиваем вручную с [London Datastore](https://data.london.gov.uk/dataset/indices-of-deprivation) в `data/external/`. Затем добавляем признаки:
+Файл IMD 2019 (`ID 2019 for London.xlsx`) скачиваем вручную с [London Datastore](https://data.london.gov.uk/dataset/indices-of-deprivation) в `data/external/`.
+
+**5. Основная база** (очистка, признаки, итоговый набор):
 
 ```bash
-python src/add_features.py --data-dir data/raw/london --out-dir data/processed --stations data/external/stations_london.csv --postcodes data/external/postcode_lookup.csv --imd "data/external/ID 2019 for London.xlsx"
+python src/build_dataset.py
 ```
 
-Без внешних файлов скрипт тоже работает, но добавит только группы, которые считаются из самих данных.
+Результат в `data/processed/`: `train_enriched.csv` и `test_enriched.csv` (все признаки и флаги очистки), `train_final.csv` и `test_final.csv` (итоговые 15 признаков + флаги). Почему выбраны именно эти признаки, описано в [`FEATURES.md`](FEATURES.md) и в разделе 7 `EDA.ipynb`.
 
-**5. Проверка вклада признаков и итоговый набор**
+**6. Проверка вклада групп признаков** (абляция на 2021–2023 годах, около 30 минут):
 
 ```bash
 python src/ablation_multi.py --train data/processed/train_enriched.csv
 ```
 
-```bash
-python src/make_final.py
-```
-
-Результат: `data/processed/train_final.csv` и `test_final.csv`. Почему выбраны именно эти признаки, описано в [`FEATURES.md`](FEATURES.md).
+Результат: `reports/ablation_multi_result.csv`.

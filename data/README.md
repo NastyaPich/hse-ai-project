@@ -12,8 +12,8 @@ data/
 │   ├── postcode_lookup.csv        # район и LSOA, src/fetch_postcode_lookup.py
 │   └── ID 2019 for London.xlsx    # IMD 2019, скачать вручную
 └── processed/             # результаты скриптов (в git не храним)
-    ├── train_enriched.csv, test_enriched.csv   # src/add_features.py
-    └── train_final.csv, test_final.csv         # src/make_final.py
+    ├── train_enriched.csv, test_enriched.csv   # src/build_dataset.py: все признаки и флаги
+    └── train_final.csv, test_final.csv         # src/build_dataset.py: итоговый набор
 ```
 
 ## Откуда берутся данные
