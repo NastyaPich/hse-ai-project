@@ -5,12 +5,12 @@
 Исходные столбцы train/test не меняются, новые дописываются справа. Вся база собирается одной командой `python src/build_dataset.py`: очистка → признаки → итоговый набор.
 
 ## Охват данных
-Все 282 872 объекта (train 266 325 + test 16 547) лежат в почтовых районах Лондона (E, EC, N, NW, SE, SW, W, WC; широта 51,39–51,67, долгота −0,35…0,14). «Ближайший крупный город» для всех один, Лондон, поэтому расстояния до других городов не имеют смысла. Вместо них добавлены расстояния до центров внутри Лондона.
+Все 282 872 объекта (train 266 325 + test 16 547) лежат в почтовых районах Лондона (E, EC, N, NW, SE, SW, W, WC и один объект test в IG8; широта 51,39–51,67, долгота −0,35…0,14). «Ближайший крупный город» для всех один, Лондон, поэтому расстояния до других городов не имеют смысла. Вместо них добавлены расстояния до центров внутри Лондона.
 
 ## Откуда данные
 | # | Группа | Столбцы | Источник | Статус |
 |---|--------|---------|----------|--------|
-| 1 | Расстояния до центров | `dist_charing_cross_km`, `dist_city_km`, `dist_canary_wharf_km`, `dist_nearest_centre_km`, `dist_west_end_km`, `dist_subcentre_km`, `nearest_subcentre`, `subcentre_tier` | Считается из `latitude`/`longitude`. Классификация центров: [London Plan 2021, Annex 1](https://www.london.gov.uk/programmes-strategies/planning/london-plan/the-london-plan-2021-online/annex-1-town-centre-network) (45 центров: international, metropolitan, major). Координаты центров общеизвестные, точность ~0,5 км | Готово |
+| 1 | Расстояния до центров | `dist_charing_cross_km`, `dist_city_km`, `dist_canary_wharf_km`, `dist_nearest_centre_km`, `dist_west_end_km`, `dist_subcentre_km`, `nearest_subcentre`, `subcentre_tier` | Считается из `latitude`/`longitude`. Классификация центров: [London Plan 2021, Annex 1](https://www.london.gov.uk/programmes-strategies/planning/london-plan/the-london-plan-2021-online/annex-1-town-centre-network) (в список вошли 43 центра: 2 international, 11 metropolitan, 30 major). Координаты центров общеизвестные, точность ~0,5 км | Готово |
 | 2 | Ставка Банка Англии | `bank_rate_pct`, `bank_rate_chg_12m` | [Bank of England, Bank Rate history](https://www.bankofengland.co.uk/boeapps/database/Bank-Rate) | Готово |
 | 3 | Цены района за прошлый год | `oc_prev_med_logprice`, `oc_prev_med_logppsm`, `oc_prev_n`, `oc_price_yoy`, `sec_prev_med_logppsm`, `sec_prev_n` | Только `train.csv` [соревнования Kaggle](https://www.kaggle.com/competitions/london-house-price-prediction-advanced-techniques). Внешних данных нет | Готово |
 | 4 | Прошлая продажа адреса | `prev_sale_price`, `prev_sale_gap_months`, `n_prev_sales`, `prev_price_adj` | Только `train.csv` того же соревнования (одинаковый `fullAddress` в разные месяцы). Внешних данных нет | Готово |
