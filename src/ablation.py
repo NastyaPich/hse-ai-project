@@ -14,7 +14,7 @@ Y = 2021, 2022, 2023). Признаки с ценами (группы «цены
 Быстрая проверка на одном году:
     python src/ablation.py --train data/processed/train_enriched.csv --years 2023 --out /tmp/abl.csv
 Нужна таблица со всеми группами (python src/build_dataset.py с файлами из data/external).
-Результат: reports/ablation_multi_result.csv (его читает notebooks/EDA.ipynb, раздел 7.9).
+Результат: reports/ablation_multi_result.csv (его читает notebooks/EDA.ipynb, раздел 7.8).
 Выводы и таблица результатов: FEATURES.md.
 """
 import argparse
