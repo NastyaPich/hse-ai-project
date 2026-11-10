@@ -1,18 +1,13 @@
 """
 Обогащение таблиц London House Price (train.csv, test.csv) признаками.
 
-Запуск (из корня репозитория):
-    python src/add_features.py --data-dir data/raw/london --out-dir data/processed
-    # со всеми внешними группами (файлы в data/external, см. data/README.md):
-    python src/add_features.py --data-dir data/raw/london --out-dir data/processed \
-        --stations data/external/stations_london.csv \
-        --postcodes data/external/postcode_lookup.csv \
-        --imd "data/external/ID 2019 for London.xlsx"
-Результат: data/processed/train_enriched.csv и test_enriched.csv.
+Отдельно этот файл не запускают: функции вызывает src/build_dataset.py (очистка -> признаки -> итоговый
+набор), а также src/ablation.py и код моделей. Главная функция - build(train, test, ...).
+Внешние файлы (станции, почтовые индексы) скачивает src/fetch_external.py, файл IMD скачивается вручную.
 
 Правило проекта: каждая группа признаков = отдельная функция add_*(df, ...), которая НЕ меняет
 исходные столбцы, а только дописывает новые. Тогда вклад группы легко измерить абляцией
-(обучить модель с группой и без, см. ablation.py).
+(обучить модель с группой и без, см. src/ablation.py).
 
 Группы признаков (подробности и результаты проверки - в FEATURES.md):
   1. add_centre_distance        расстояние до центров Лондона и до ближайшего центра по London Plan
@@ -43,12 +38,7 @@
 
 ВАЖНО про утечки: признаки 3, 4 и 6 используют цены, поэтому для строки они считаются только
 по продажам, которые произошли ДО неё. Для test (2024) историей служит весь train (до 2023).
-
-Обычно этот файл не запускают отдельно: всю базу собирает src/build_dataset.py
-(очистка -> признаки -> итоговый набор).
 """
-import argparse
-import os
 import sys
 
 import numpy as np
@@ -265,7 +255,7 @@ def add_repeat_sale(df, hist):
 # ---------------------------------------------------------------------------
 # Группа 5. Транспорт (станции)
 # Источник: OpenStreetMap contributors (лицензия ODbL, https://www.openstreetmap.org/copyright),
-# выгрузка станций через Overpass API (https://overpass-api.de) скриптом fetch_stations_osm.py.
+# выгрузка станций через Overpass API (https://overpass-api.de) скриптом src/fetch_external.py (подкоманда stations).
 # Теги: https://wiki.openstreetmap.org/wiki/Key:railway
 # Сверка/дополнение: открытые данные TfL https://tfl.gov.uk/info-for/open-data-users/
 # Файл data/external/stations_london.csv создаётся этим скриптом локально, в git не хранится.
@@ -407,7 +397,7 @@ def add_local_context(df, hist, addresses, radius_km=0.5, k=20):
 # Группа 7. Район (borough) и LSOA по почтовому индексу
 # Источник: postcodes.io (https://postcodes.io, документация https://api.postcodes.io/docs),
 # данные ONS Postcode Directory. Таблица data/external/postcode_lookup.csv создаётся локально
-# скриптом fetch_postcode_lookup.py (нужен интернет), в git не хранится.
+# скриптом src/fetch_external.py, подкоманда postcodes (нужен интернет), в git не хранится.
 # ---------------------------------------------------------------------------
 def load_postcode_lookup(path):
     lk = pd.read_csv(path)
@@ -507,37 +497,3 @@ def build(train, test, stations=None, postcodes=None, imd=None, hist=None):
             tr, te = add_imd(tr, imd), add_imd(te, imd)
     return tr, te
 
-
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--data-dir", required=True, help="папка с train.csv и test.csv")
-    ap.add_argument("--out-dir", required=True)
-    ap.add_argument("--stations", help="stations_london.csv (результат fetch_stations_osm.py)")
-    ap.add_argument("--postcodes", help="postcode_lookup.csv (результат fetch_postcode_lookup.py)")
-    ap.add_argument("--imd", help="ID 2019 for London.xlsx (London Datastore); нужен вместе с --postcodes")
-    a = ap.parse_args()
-    os.makedirs(a.out_dir, exist_ok=True)
-    train = pd.read_csv(os.path.join(a.data_dir, "train.csv"))
-    test = pd.read_csv(os.path.join(a.data_dir, "test.csv"))
-    stations = load_stations(a.stations) if a.stations else None
-    if stations is None:
-        print("Транспорт пропущен: файл станций не указан (--stations).")
-    postcodes = load_postcode_lookup(a.postcodes) if a.postcodes else None
-    imd = load_imd(a.imd) if (a.imd and postcodes is not None) else None
-    if a.imd and postcodes is None:
-        print("IMD пропущен: нужен --postcodes (код LSOA берётся из него).")
-    tr, te = build(train, test, stations, postcodes, imd)
-    for name, orig, new_df in (("train", train, tr), ("test", test, te)):
-        assert len(new_df) == len(orig), "число строк изменилось"
-        assert list(orig.columns) == list(new_df.columns[:len(orig.columns)]), "исходные столбцы изменились"
-        new = [c for c in new_df.columns if c not in orig.columns]
-        path = os.path.join(a.out_dir, f"{name}_enriched.csv")
-        new_df.to_csv(path, index=False)
-        print(f"\n{name}: {len(new_df)} строк, +{len(new)} столбцов -> {path}")
-        num = new_df[new].select_dtypes("number")
-        print(pd.concat([num.describe().T[["count", "min", "50%", "max"]],
-                         (1 - num.count() / len(num)).rename("доля_NaN")], axis=1).round(2).to_string())
-
-
-if __name__ == "__main__":
-    main()

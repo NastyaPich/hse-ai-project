@@ -22,7 +22,7 @@ Kaggle «London House Price Prediction: Advanced Techniques». `train.csv` (266 
 
 ## Что уже сделано
 - EDA лондонских данных: `notebooks/EDA.ipynb` (чекпойнт 2, срок 10.11.2026).
-- Добавление признаков и выбор итогового набора: код в `src/` (`add_features.py`, `ablation_multi.py`, `make_final.py`, `fetch_stations_osm.py`, `fetch_postcode_lookup.py`), журнал решений, источники и результаты в `FEATURES.md`.
+- Добавление признаков и выбор итогового набора: код в `src/` (`add_features.py` — признаки, `ablation.py` — абляция на 2021–2023, `build_dataset.py` — сборка базы и список итоговых признаков `KEEP`, `fetch_external.py` — скачивание станций и почтовых индексов), журнал решений, источники и результаты в `FEATURES.md`. Описание данных и команды запуска — в `README.md`.
 - Очистка (`src/clean.py`): строки не удаляются, а помечаются флагами (`is_duplicate`, `dup_addr_month`, `price_suspect`, `area_suspect`, `addr_multi_unit`) + `pt_group`. Признаки из цен считаются только по train без дубликатов и подозрительных цен. Пропуски заполнены в новых столбцах `*_filled` (площадь — медиана по типу жилья и спальням, комнаты — по типу, категории — `Unknown`), флаги `*_missing`; исходные столбцы не тронуты. Что исключать при обучении, решается на чекпойнте 3.
 - Основная база собирается одной командой `python src/build_dataset.py` → `data/processed/{train,test}_enriched.csv` (все признаки) и `{train,test}_final.csv` (15 отобранных признаков + флаги + `lsoa_code` как ключ).
 - В EDA добавлен раздел 7 про основную базу и новые признаки.
