@@ -69,30 +69,55 @@
 ## 📁 Структура репозитория
 
 ```
-├── data/                  # данные (что где лежит и откуда брать: data/README.md)
+├── data/                  # данные (подробнее — раздел «Данные» ниже)
 │   ├── raw/               # архив Kaggle; распакованные CSV в raw/london/ (в git не храним)
 │   ├── external/          # внешние данные: станции, почтовые индексы, IMD (в git не храним)
 │   └── processed/         # таблицы с признаками (в git не храним)
 ├── notebooks/
 │   └── EDA.ipynb          # разведочный анализ (чекпойнт 2)
 ├── src/                   # код проекта
-│   ├── build_dataset.py       # сборка основной базы одной командой
-│   ├── clean.py               # очистка: флаги дубликатов, ошибок и т.п. (строки не удаляются)
-│   ├── add_features.py        # добавление признаков (одна функция на группу)
-│   ├── fetch_stations_osm.py  # скачивание станций из OpenStreetMap
-│   ├── fetch_postcode_lookup.py  # район и LSOA по почтовому индексу (postcodes.io)
-│   ├── ablation.py            # проверка вклада групп признаков (один год)
-│   ├── ablation_multi.py      # то же на трёх годах (2021–2023)
-│   └── make_final.py          # итоговый набор признаков
-├── reports/               # результаты экспериментов и отчёты
+│   ├── build_dataset.py   # сборка основной базы одной командой + список итоговых признаков (KEEP)
+│   ├── clean.py           # очистка: флаги дубликатов, ошибок и т.п. (строки не удаляются), заполнение пропусков
+│   ├── add_features.py    # добавление признаков (одна функция на группу)
+│   ├── fetch_external.py  # скачивание внешних данных: станции (OpenStreetMap), район и LSOA (postcodes.io)
+│   └── ablation.py        # проверка вклада групп признаков (абляция, 2021–2023)
+├── reports/               # результаты экспериментов (небольшие таблицы) и отчёты
+│   ├── ablation_multi_result.csv    # результат абляции (src/ablation.py)
 │   └── practical_applicability.pdf  # практическая применимость (чекпойнт 2)
-├── FEATURES.md            # журнал признаков: источники, защита от утечек, результаты
+├── FEATURES.md            # признаки: источники, защита от утечек, очистка, результаты абляции
 ├── CLAUDE.md              # контекст проекта для Claude Code
 ├── requirements.txt       # зависимости Python
 └── README.md
 ```
 
 Сервис на FastAPI появится в папке `service/` (чекпойнт 4).
+
+## 💾 Данные
+
+Сами таблицы в git не хранятся (кроме архива соревнования, он нужен ноутбуку EDA). Что где должно лежать:
+
+```
+data/
+├── raw/
+│   ├── london-house-price-prediction-advanced-techniques.zip   # архив Kaggle (в git)
+│   └── london/            # распакованные train.csv, test.csv
+├── external/              # внешние данные для признаков
+│   ├── stations_london.csv        # станции: python src/fetch_external.py stations
+│   ├── postcode_lookup.csv        # район и LSOA: python src/fetch_external.py postcodes
+│   └── ID 2019 for London.xlsx    # IMD 2019, скачать вручную
+└── processed/             # результат python src/build_dataset.py
+    ├── train_enriched.csv, test_enriched.csv   # все признаки и флаги
+    └── train_final.csv, test_final.csv         # итоговый набор
+```
+
+| Файл | Источник | Как получить |
+|------|----------|--------------|
+| `train.csv`, `test.csv` | [Kaggle: London House Price Prediction: Advanced Techniques](https://www.kaggle.com/competitions/london-house-price-prediction-advanced-techniques) | распаковать архив (шаг 2 ниже) |
+| `stations_london.csv` | OpenStreetMap (ODbL) через Overpass API | `python src/fetch_external.py stations` (нужен интернет) |
+| `postcode_lookup.csv` | [postcodes.io](https://postcodes.io) (ONS Postcode Directory) | `python src/fetch_external.py postcodes` (нужен интернет) |
+| `ID 2019 for London.xlsx` | English Indices of Deprivation 2019 (OGL v3), [London Datastore](https://data.london.gov.uk/dataset/indices-of-deprivation) | скачать вручную и положить в `data/external/` |
+
+Подробно о признаках, источниках и защите от утечек: [`FEATURES.md`](FEATURES.md).
 
 ## 🚀 Как запустить
 
@@ -112,14 +137,11 @@ unzip data/raw/london-house-price-prediction-advanced-techniques.zip -d data/raw
 
 **3. EDA.** Откройте `notebooks/EDA.ipynb`. Ноутбук сам найдёт данные: распакованные CSV, архив или (если ничего нет) скачает архив с GitHub.
 
-**4. Внешние данные** (нужен интернет, подробности в `data/README.md`):
+**4. Внешние данные** (нужен интернет, подробности в разделе «Данные» выше):
 
 ```bash
-python src/fetch_stations_osm.py
-```
-
-```bash
-python src/fetch_postcode_lookup.py
+python src/fetch_external.py stations
+python src/fetch_external.py postcodes
 ```
 
 Файл IMD 2019 (`ID 2019 for London.xlsx`) скачиваем вручную с [London Datastore](https://data.london.gov.uk/dataset/indices-of-deprivation) в `data/external/`.
@@ -135,7 +157,7 @@ python src/build_dataset.py
 **6. Проверка вклада групп признаков** (абляция на 2021–2023 годах, около 30 минут):
 
 ```bash
-python src/ablation_multi.py --train data/processed/train_enriched.csv
+python src/ablation.py --train data/processed/train_enriched.csv
 ```
 
-Результат: `reports/ablation_multi_result.csv`.
+Результат: `reports/ablation_multi_result.csv`. Для быстрой проверки можно взять один год: `--years 2023`.
