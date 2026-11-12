@@ -1,0 +1,101 @@
+{
+ "knn": {
+  "feature_set": "место + объект + окружение + прошлая продажа",
+  "k": 20,
+  "weights": "distance",
+  "coord_weight": 1.0,
+  "window": 5
+ },
+ "linear": {
+  "num": [
+   "log_area",
+   "bedrooms_filled",
+   "bathrooms_filled",
+   "livingRooms_filled",
+   "latitude",
+   "longitude",
+   "sale_month",
+   "has_prev",
+   "prev_rel_knn",
+   "prev_sale_gap_months",
+   "dist_charing_cross_km",
+   "dist_canary_wharf_km",
+   "dist_nearest_centre_km",
+   "dist_subcentre_km",
+   "dist_station_km",
+   "dist_tube_km",
+   "n_addr_500m",
+   "knn20_prev_med_logppsm",
+   "imd_score",
+   "crime_decile",
+   "living_env_decile",
+   "log_area_sq",
+   "log_area_x_flat",
+   "dist_cc_sq",
+   "knn_x_flat"
+  ],
+  "flags": [
+   "floorAreaSqM_missing",
+   "bedrooms_missing",
+   "bathrooms_missing",
+   "livingRooms_missing"
+  ],
+  "cat": [
+   "pt_group_filled",
+   "tenure_filled",
+   "currentEnergyRating_filled",
+   "outcode",
+   "borough"
+  ],
+  "window": 10,
+  "alpha": 1
+ },
+ "lgb": {
+  "features": [
+   "bathrooms",
+   "bedrooms",
+   "floorAreaSqM",
+   "livingRooms",
+   "tenure",
+   "pt_group",
+   "currentEnergyRating",
+   "outcode",
+   "latitude",
+   "longitude",
+   "sale_month",
+   "sale_year",
+   "prev_sale_price",
+   "prev_price_adj",
+   "prev_sale_gap_months",
+   "dist_charing_cross_km",
+   "dist_canary_wharf_km",
+   "dist_nearest_centre_km",
+   "dist_subcentre_km",
+   "dist_station_km",
+   "dist_tube_km",
+   "n_addr_500m",
+   "knn20_prev_med_logppsm",
+   "borough",
+   "imd_score",
+   "crime_decile",
+   "living_env_decile",
+   "log_prev_ppsm_adj",
+   "prev_rel_knn",
+   "addr_multi_unit_past"
+  ],
+  "params": {
+   "n_estimators": 800,
+   "learning_rate": 0.03,
+   "num_leaves": 255,
+   "min_child_samples": 10,
+   "subsample": 1.0,
+   "colsample_bytree": 0.5,
+   "reg_lambda": 5.0,
+   "subsample_freq": 0
+  },
+  "accepted": [
+   "+ цена м² прошлой продажи (log_prev_ppsm_adj, prev_rel_knn)",
+   "+ флаг «адрес на несколько квартир» (по прошлому)"
+  ]
+ }
+}

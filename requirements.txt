@@ -8,9 +8,13 @@ scipy>=1.10
 scikit-learn>=1.3
 openpyxl>=3.1        # чтение файла IMD 2019 (xlsx)
 
-# графики (EDA)
+# графики (ноутбуки EDA и ML)
 matplotlib>=3.7
 seaborn>=0.13
 
 # ноутбуки
 jupyter
+
+# модели (чекпойнт 3)
+lightgbm>=4.0
+shap>=0.45           # важность признаков (SHAP)

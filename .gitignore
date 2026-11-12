@@ -8,6 +8,10 @@
 data/raw/london/
 data/external/
 data/processed/
+# обученные модели (большие файлы, пересоздаются: python src/train_models.py --stage final);
+# описание модели models/*.json (признаки, настройки) небольшое и хранится в git
+models/*
+!models/*.json
 # архив Kaggle в data/raw/ остаётся в git: ноутбук EDA.ipynb скачивает его с GitHub
 
 # Python и Jupyter

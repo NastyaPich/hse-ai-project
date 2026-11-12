@@ -111,6 +111,65 @@ def history_mask(train_flagged):
     return (train_flagged['is_duplicate'] == 0) & (train_flagged['price_suspect'] == 0)
 
 
+# ---------------------------------------------------------------------------------------------------
+# Чекпойнт 3: правила для моделей. Их вызывает ТОЛЬКО код моделей (src/ml_utils.py); основная база
+# (build_dataset.py) их не использует и не меняется. Старые флаги выше по смыслу не меняются
+# (на них опираются числа в EDA).
+#
+#   price_suspect_noarea   у объекта нет площади, поэтому правило price_suspect (цена за м²) к нему не применимо.
+#                          Сравниваем цену с медианой цены похожих продаж (тот же outcode и год, тот же тип жилья
+#                          и число спален; если таких меньше 5 - тот же outcode-год-тип, затем outcode-год,
+#                          затем outcode за все годы). Флаг = цена отличается от медианы больше чем в NOAREA_RATIO раз.
+#                          Порог 10: у обычных продаж с известной площадью (price_suspect = 0) так далеко от медианы
+#                          лежит только 0,14% строк, а у подозрительных (price_suspect = 1) - 37%.
+#   addr_multi_unit_past   как addr_multi_unit, но без взгляда в будущее: у адреса уже БЫЛИ две продажи с интервалом
+#                          <= 3 месяцев, и обе раньше месяца текущей строки (только по истории hist).
+#   history_mask_strict    как history_mask, но ещё без price_suspect_noarea.
+# ---------------------------------------------------------------------------------------------------
+NOAREA_RATIO = 10
+NOAREA_KEYS = [['outcode', 'sale_year', 'pt_group_filled', 'bedrooms_filled'],
+               ['outcode', 'sale_year', 'pt_group_filled'], ['outcode', 'sale_year'], ['outcode']]
+
+
+def add_noarea_flag(train_filled, test_filled, ratio=NOAREA_RATIO, min_n=5):
+    """Дописывает столбец price_suspect_noarea (нужны флаги add_clean_flags и столбцы fill_missing).
+    Медианы считаются по train без дубликатов и подозрительных цен. В test цены нет, флаг = 0."""
+    tr, te = train_filled.copy(), test_filled.copy()
+    ref = tr[history_mask(tr)].assign(_lp=lambda d: np.log(d['price']))
+    med = pd.Series(np.nan, index=tr.index)
+    for k in NOAREA_KEYS:
+        g = ref.groupby(k)['_lp'].agg(['median', 'size'])
+        g = g.loc[g['size'] >= min_n, 'median'].rename('_m')
+        med = med.fillna(tr[k].join(g, on=k)['_m'])
+    dev = (np.log(tr['price']) - med).abs()
+    tr['price_suspect_noarea'] = (tr['floorAreaSqM'].isna() & (dev > np.log(ratio))).astype(int)
+    te['price_suspect_noarea'] = 0
+    return tr, te
+
+
+def history_mask_strict(train_flagged):
+    """Как history_mask, но дополнительно без price_suspect_noarea (если такой столбец есть)."""
+    m = history_mask(train_flagged)
+    if 'price_suspect_noarea' in train_flagged.columns:
+        m = m & (train_flagged['price_suspect_noarea'] == 0)
+    return m
+
+
+def addr_multi_unit_past(df, hist, months=MULTI_UNIT_MONTHS):
+    """0/1 для каждой строки df: среди продаж hist того же адреса СТРОГО раньше месяца строки уже есть пара
+    с интервалом <= months месяцев. Используются только даты (не цены). hist - прошлые продажи
+    (для фолда Y - train до Y-1, для test - весь train); полные дубликаты из hist убираются."""
+    h = hist
+    if 'is_duplicate' in h.columns:
+        h = h[h['is_duplicate'] == 0]
+    h = h[['fullAddress', 'sale_year', 'sale_month']].assign(t=h['sale_year'] * 12 + h['sale_month'])
+    h = h.sort_values(['fullAddress', 't'])
+    gap = h.groupby('fullAddress')['t'].diff()
+    first = h.loc[gap <= months].groupby('fullAddress')['t'].min()  # месяц, когда пара впервые «сложилась»
+    t = df['sale_year'] * 12 + df['sale_month']
+    return (df['fullAddress'].map(first) < t).fillna(False).astype(int)
+
+
 def summary(tr, te):
     """Таблица: сколько строк помечено каждым флагом."""
     rows = []
