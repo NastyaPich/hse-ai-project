@@ -6,7 +6,8 @@
 
 Третий внешний файл, IMD 2019 ("ID 2019 for London.xlsx"), скачивается вручную с London Datastore
 (https://data.london.gov.uk/dataset/indices-of-deprivation) в data/external/.
-Файлы из data/external в git не хранятся. Как они превращаются в признаки - src/add_features.py и FEATURES.md.
+Файлы из data/external хранятся в git как снимок, по которому считались признаки (README.md, раздел «Данные»);
+этот скрипт нужен, чтобы показать, как они получены, и при желании обновить их. Как они превращаются в признаки - src/add_features.py и FEATURES.md.
 
 1) stations: станции метро и железной дороги Большого Лондона из OpenStreetMap (Overpass API).
    Столбцы: name, lat, lon, kind, open_year.
