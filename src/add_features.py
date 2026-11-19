@@ -258,7 +258,7 @@ def add_repeat_sale(df, hist):
 # выгрузка станций через Overpass API (https://overpass-api.de) скриптом src/fetch_external.py (подкоманда stations).
 # Теги: https://wiki.openstreetmap.org/wiki/Key:railway
 # Сверка/дополнение: открытые данные TfL https://tfl.gov.uk/info-for/open-data-users/
-# Файл data/external/stations_london.csv создаётся этим скриптом локально, в git не хранится.
+# Файл data/external/stations_london.csv создан этим скриптом и хранится в git как снимок (OSM постоянно обновляется).
 # ---------------------------------------------------------------------------
 # Ручная правка выгрузки OSM (проверено по списку станций 07.11.2026).
 # 1) Объекты с тегом railway=station, которые не являются станциями городского транспорта:
@@ -397,7 +397,7 @@ def add_local_context(df, hist, addresses, radius_km=0.5, k=20):
 # Группа 7. Район (borough) и LSOA по почтовому индексу
 # Источник: postcodes.io (https://postcodes.io, документация https://api.postcodes.io/docs),
 # данные ONS Postcode Directory. Таблица data/external/postcode_lookup.csv создаётся локально
-# скриптом src/fetch_external.py, подкоманда postcodes (нужен интернет), в git не хранится.
+# скриптом src/fetch_external.py, подкоманда postcodes (нужен интернет), хранится в git как снимок.
 # ---------------------------------------------------------------------------
 def load_postcode_lookup(path):
     lk = pd.read_csv(path)

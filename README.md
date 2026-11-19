@@ -71,7 +71,7 @@
 ```
 ├── data/                  # данные (подробнее — раздел «Данные» ниже)
 │   ├── raw/               # архив Kaggle; распакованные CSV в raw/london/ (в git не храним)
-│   ├── external/          # внешние данные: станции, почтовые индексы, IMD (в git не храним)
+│   ├── external/          # внешние данные: станции, почтовые индексы, IMD (снимок, в git)
 │   └── processed/         # таблицы с признаками (в git не храним)
 ├── notebooks/
 │   ├── EDA.ipynb          # разведочный анализ (чекпойнт 2)
@@ -107,14 +107,14 @@
 
 ## 💾 Данные
 
-Сами таблицы в git не хранятся (кроме архива соревнования, он нужен ноутбуку EDA). Что где должно лежать:
+В git хранятся только исходные данные: архив соревнования и внешние данные (`data/external/`, 6,4 МБ). Собранная база в git не хранится: она собирается из них одной командой, всегда одинаково. Что где лежит:
 
 ```
 data/
 ├── raw/
 │   ├── london-house-price-prediction-advanced-techniques.zip   # архив Kaggle (в git)
-│   └── london/            # распакованные train.csv, test.csv
-├── external/              # внешние данные для признаков
+│   └── london/            # распакованные train.csv, test.csv (необязательно: скрипты и EDA читают архив)
+├── external/              # внешние данные для признаков (в git, снимок на момент расчёта признаков)
 │   ├── stations_london.csv        # станции: python src/fetch_external.py stations
 │   ├── postcode_lookup.csv        # район и LSOA: python src/fetch_external.py postcodes
 │   └── ID 2019 for London.xlsx    # IMD 2019, скачать вручную
@@ -125,10 +125,12 @@ data/
 
 | Файл | Источник | Как получить |
 |------|----------|--------------|
-| `train.csv`, `test.csv` | [Kaggle: London House Price Prediction: Advanced Techniques](https://www.kaggle.com/competitions/london-house-price-prediction-advanced-techniques) | распаковать архив (шаг 2 ниже) |
+| `train.csv`, `test.csv` | [Kaggle: London House Price Prediction: Advanced Techniques](https://www.kaggle.com/competitions/london-house-price-prediction-advanced-techniques) | архив в git, распаковывать не обязательно |
 | `stations_london.csv` | OpenStreetMap (ODbL) через Overpass API | `python src/fetch_external.py stations` (нужен интернет) |
 | `postcode_lookup.csv` | [postcodes.io](https://postcodes.io) (ONS Postcode Directory) | `python src/fetch_external.py postcodes` (нужен интернет) |
-| `ID 2019 for London.xlsx` | English Indices of Deprivation 2019 (OGL v3), [London Datastore](https://data.london.gov.uk/dataset/indices-of-deprivation) | скачать вручную и положить в `data/external/` |
+| `ID 2019 for London.xlsx` | English Indices of Deprivation 2019 (OGL v3), [London Datastore](https://data.london.gov.uk/dataset/indices-of-deprivation) | скачан вручную |
+
+**Почему внешние данные лежат в git.** Станции OpenStreetMap и справочник почтовых индексов постоянно обновляются: если скачать их заново, признаки получатся немного другими и числа в EDA и абляции не совпадут. Поэтому в git лежит снимок, по которому считались признаки, и база из репозитория всегда собирается одинаково. Скрипт `src/fetch_external.py` показывает, как файлы получены, и позволяет обновить их. Лицензии разрешают распространение с указанием источника: OpenStreetMap — ODbL (© участники OpenStreetMap), IMD 2019 и ONS Postcode Directory — Open Government Licence v3.
 
 Подробно о признаках, источниках и защите от утечек: [`FEATURES.md`](FEATURES.md).
 
@@ -142,32 +144,44 @@ data/
 pip install -r requirements.txt
 ```
 
-**2. Данные**
-
-```bash
-unzip data/raw/london-house-price-prediction-advanced-techniques.zip -d data/raw/london
-```
-
-**3. EDA.** Откройте `notebooks/EDA.ipynb`. Ноутбук сам найдёт данные: распакованные CSV, архив или (если ничего нет) скачает архив с GitHub.
-
-**4. Внешние данные** (нужен интернет, подробности в разделе «Данные» выше):
-
-```bash
-python src/fetch_external.py stations
-python src/fetch_external.py postcodes
-```
-
-Файл IMD 2019 (`ID 2019 for London.xlsx`) скачиваем вручную с [London Datastore](https://data.london.gov.uk/dataset/indices-of-deprivation) в `data/external/`.
-
-**5. Основная база** (очистка, признаки, итоговый набор):
+**2. Основная база** (очистка, признаки, итоговый набор) — одной командой, около минуты:
 
 ```bash
 python src/build_dataset.py
 ```
 
-Результат в `data/processed/`: `train_enriched.csv` и `test_enriched.csv` (все признаки и флаги очистки), `train_final.csv` и `test_final.csv` (итоговые 15 признаков, флаги и заполненные пропуски). Почему выбраны именно эти признаки, описано в [`FEATURES.md`](FEATURES.md) и в разделе 7 `EDA.ipynb`.
+Скрипт берёт всё из репозитория: исходные данные прямо из архива Kaggle (распаковывать не нужно) и внешние данные из `data/external/`. Интернет не нужен. Результат в `data/processed/`: `train_enriched.csv` и `test_enriched.csv` (все признаки и флаги очистки), `train_final.csv` и `test_final.csv` (итоговые 15 признаков, флаги и заполненные пропуски). Почему выбраны именно эти признаки, описано в [`FEATURES.md`](FEATURES.md) и в разделе 7 `EDA.ipynb`.
 
-**6. Проверка вклада групп признаков** (абляция на 2021–2023 годах, 10–30 минут в зависимости от компьютера):
+**Проверка, что база собралась точно такой же**, — контрольные суммы SHA-256 (у одинаковых файлов они совпадают, у различающихся хотя бы на один символ — нет):
+
+```bash
+sha256sum data/processed/train_final.csv data/processed/test_final.csv
+```
+
+Ожидаемый результат (pandas 3.0.5, numpy 2.5.3):
+
+```
+657288d7cf47ab92077f464c8fc040c47e317650c7ad3088a1d108f8d91bcff6  data/processed/train_final.csv
+1d83d76ed7d113630eae0924450dd7159ebeb1da5eb10398e0490e31503dc667  data/processed/test_final.csv
+```
+
+Сборка с нуля из репозитория проверена: все четыре файла совпадают с базой, по которой считались EDA и модели. С другими версиями pandas и numpy суммы могут отличаться из-за записи дробных чисел (последние знаки после запятой), сами значения при этом те же.
+
+**3. EDA.** Откройте `notebooks/EDA.ipynb` и запустите все ячейки по порядку (Run All). Разделы 1–6 читают исходные данные (распакованные CSV, архив или скачивают архив с GitHub), раздел 7 — базу из шага 2.
+
+**4. Обновить внешние данные** (необязательно, нужен интернет). Числа в EDA и абляции после этого могут немного измениться:
+
+```bash
+python src/fetch_external.py stations
+```
+
+```bash
+python src/fetch_external.py postcodes
+```
+
+Файл IMD 2019 (`ID 2019 for London.xlsx`) скачивается вручную с [London Datastore](https://data.london.gov.uk/dataset/indices-of-deprivation) в `data/external/`.
+
+**5. Проверка вклада групп признаков** (абляция на 2021–2023 годах, 10–30 минут в зависимости от компьютера):
 
 ```bash
 python src/ablation.py --train data/processed/train_enriched.csv
@@ -175,7 +189,7 @@ python src/ablation.py --train data/processed/train_enriched.csv
 
 Результат: `reports/ablation_multi_result.csv`. Для быстрой проверки можно взять один год: `--years 2023`.
 
-**7. Модели (чекпойнт 3).** Нужна основная база (шаг 5). Все расчёты — одной командой (около 30 минут на 4 ядрах):
+**6. Модели (чекпойнт 3).** Нужна основная база (шаг 2). Все расчёты — одной командой (около 30 минут на 4 ядрах):
 
 ```bash
 python src/train_models.py

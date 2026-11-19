@@ -6,8 +6,10 @@
 *.parquet
 *.xlsx
 data/raw/london/
-data/external/
 data/processed/
+# внешние данные (6,4 МБ) храним в git как снимок: без них базу не собрать одинаково (README.md, «Данные»)
+!data/external/*.csv
+!data/external/*.xlsx
 # обученные модели (большие файлы, пересоздаются: python src/train_models.py --stage final);
 # описание модели models/*.json (признаки, настройки) небольшое и хранится в git
 models/*

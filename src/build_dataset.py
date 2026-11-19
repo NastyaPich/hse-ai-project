@@ -4,7 +4,8 @@
     python src/build_dataset.py
 
 Шаги:
-  1. читает data/raw/london/train.csv и test.csv;
+  1. читает data/raw/london/train.csv и test.csv; если их нет - читает те же файлы прямо из архива Kaggle
+     data/raw/london-house-price-prediction-advanced-techniques.zip (он хранится в git, распаковывать не нужно);
   2. очистка (src/clean.py): строки не удаляются, добавляются флаги и pt_group;
      пропуски заполняются в новых столбцах *_filled (исходные столбцы не меняются);
   3. признаки (src/add_features.py): признаки из цен считаются только по "чистой" истории
@@ -17,13 +18,17 @@
 Только шаг 5 (заново выбрать столбцы из готовых *_enriched.csv, без пересчёта признаков):
     python src/build_dataset.py --only-final
 
-Внешние файлы по умолчанию берутся из data/external (как их получить - README.md, раздел «Данные»).
+Внешние файлы по умолчанию берутся из data/external. Они хранятся в git как снимок на момент расчёта признаков
+(станции OpenStreetMap и справочник почтовых индексов со временем обновляются), поэтому сборка из репозитория
+всегда даёт одну и ту же базу. Как они получены - src/fetch_external.py и README.md, раздел «Данные».
+Проверка, что сборка совпала, - контрольные суммы в README.md (раздел «Как запустить», шаг 2).
 Если какого-то файла нет, соответствующая группа пропускается, а итоговые таблицы не пишутся.
 Списки столбцов итогового набора можно импортировать из другого кода: import build_dataset as bd; bd.KEEP.
 """
 import argparse
 import os
 import sys
+import zipfile
 
 import pandas as pd
 
@@ -55,6 +60,22 @@ KEEP = [
 ]
 KEYS = ["lsoa_code"]  # справочный столбец для присоединения новых данных (в модель не идёт)
 
+RAW_ZIP = "data/raw/london-house-price-prediction-advanced-techniques.zip"  # архив Kaggle, хранится в git
+
+
+def read_raw(data_dir, zip_path=RAW_ZIP):
+    """train и test: из распакованных CSV в data_dir, а если их нет - прямо из zip-архива Kaggle."""
+    csv = [os.path.join(data_dir, f"{n}.csv") for n in ("train", "test")]
+    if all(os.path.exists(p) for p in csv):
+        print(f"Исходные данные: {data_dir}")
+        return pd.read_csv(csv[0]), pd.read_csv(csv[1])
+    if not os.path.exists(zip_path):
+        raise SystemExit(f"Нет ни {csv[0]}, ни архива {zip_path}. Запускайте скрипт из корня репозитория.")
+    print(f"Исходные данные: архив {zip_path}")
+    with zipfile.ZipFile(zip_path) as z:
+        names = {os.path.basename(n): n for n in z.namelist() if not n.endswith("/")}
+        return pd.read_csv(z.open(names["train.csv"])), pd.read_csv(z.open(names["test.csv"]))
+
 
 def select_final(df, is_train):
     """Оставляет в обогащённой таблице только столбцы итогового набора (в train ещё и price)."""
@@ -83,8 +104,7 @@ def main():
             print(f"{name}: {out.shape[0]} строк, {out.shape[1]} столбцов -> {name}_final.csv")
         return
 
-    train = pd.read_csv(os.path.join(a.data_dir, "train.csv"))
-    test = pd.read_csv(os.path.join(a.data_dir, "test.csv"))
+    train, test = read_raw(a.data_dir)
     print(f"train {train.shape}, test {test.shape}")
 
     def ext(name):
